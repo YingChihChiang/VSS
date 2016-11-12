@@ -1,0 +1,11 @@
+package require psfgen
+
+resetpsf
+
+topology top_all36_cgenff.rtf
+topology toluene.str 
+
+segment BEN { pdb toluene.pdb }
+coordpdb toluene.pdb BEN
+
+writepsf toluene.psf

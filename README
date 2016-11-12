@@ -1,0 +1,32 @@
+
+How to install
+---------------------------------------------------------------------------
+
+To install, please edit the file "install_vss.csh"
+
+edit the first three directories (vmd plugin directory, tcl include file direcotry, tcl library directory) according to your system, e.g.
+
+set VMDPLUGINDIR = ~/work/binary/vmd_plugins
+set TCLINCDIR = /usr/include/tcl8.5
+set TCLLIBDIR = /usr/lib/x86_64-linux-gnu
+ 
+then, type
+
+./install_vss.csh
+
+
+This will install vss to your current vmd plugin direcotry (VMDPLUGINDIR).
+
+-----------------------------------------------------------------------------
+
+
+Tutorial
+-----------------------------------------------------------------------------
+
+A tutorial on how to use vss is provided. 
+See VSS_tutorial.pdf under the tutorial directory.
+A short example is also given.
+
+-----------------------------------------------------------------------------
+
+
