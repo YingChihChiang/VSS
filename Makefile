@@ -14,9 +14,7 @@ world:
 	@echo "Building all supported targets..."
 	csh -f build.csh
 
-BUILDDIRS = \
-  readcharmmpar \
-  vss
+BUILDDIRS = vss
 
 distrib: 
 	@echo "Populating distribution directory with compiled plugins"

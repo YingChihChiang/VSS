@@ -11,7 +11,7 @@ if ( ! -d "$VMDPLUGINDIR" || ! -d $VMDPLUGINDIR/LINUXAMD64 ) then
   exit 1
 endif
 
-# Compile and install vss and readcharmmpar
+# Compile and install vss
 make clean
 setenv TCLINC -I$TCLINCDIR
 setenv TCLLIB -F$TCLLIBDIR
