@@ -201,7 +201,7 @@ proc ::VSS::vss { args } {
      error "Could not load the readcharmmpar package needed to read VDW parameters"
   } else {
      set parfile $parfile
-     set Allpara [::Pararead::read_charmm_parameters $parfile]
+     set Allpara [::VSS::read_charmm_parameters $parfile]
      set VDWlist [$sel1 get type] 
      getVDWdata $VDWlist $Allpara
      set VDWlist [$sel2 get type]
@@ -415,7 +415,7 @@ proc ::VSS::getVDWdata {VDWlist Allpara} {
 # Read VDW parameter from parameter file and append it to RData
   variable RData
   foreach {item} $VDWlist {
-     set temppara [::Pararead::getvdwparam $Allpara  $item]
+     set temppara [::VSS::getvdwparam $Allpara  $item]
      lappend temppara2 [lindex $temppara 0]
      lappend temppara2 [lindex $temppara 1]
      for {set i 2} {$i < 4} {incr i} {
@@ -739,7 +739,7 @@ proc ::VSS::get_dihedral_and_improper {sel mid parfile} {
   # Get All parameters
   package require readcharmmpar 1.2
   set typelist [$sel get type]
-  set Allpara [::Pararead::read_charmm_parameters $parfile]
+  set Allpara [::VSS::read_charmm_parameters $parfile]
   set natom [$sel num]
   set rep [list  "{" "" "}" "" "unknown" ""]
   set outflag 1;   # Change to 2 when Improper is on!
@@ -754,7 +754,7 @@ proc ::VSS::get_dihedral_and_improper {sel mid parfile} {
      # Dihedral Parameters
      foreach {item1 item2 item3 item4} $templist {
         set mytype [list [lindex $typelist $item1] [lindex $typelist $item2] [lindex $typelist $item3] [lindex $typelist $item4]]
-        set tempdata [::Pararead::getdihedparam $Allpara $mytype]
+        set tempdata [::VSS::getdihedparam $Allpara $mytype]
         set ndihedral [expr [llength $tempdata]]
         for {set i 1} {$i < $ndihedral} {incr i} {
            lappend dihedlist [list $item1 $item2 $item3 $item4]
@@ -772,7 +772,7 @@ proc ::VSS::get_dihedral_and_improper {sel mid parfile} {
 #    # Improper Parameters (Append to dihedral)
 #    foreach {item1 item2 item3 item4} $templist {
 #       set mytype [list [lindex $typelist $item1] [lindex $typelist $item2] [lindex $typelist $item3] [lindex $typelist $item4]]
-#       set tempdata [::Pararead::getimproparam $Allpara $mytype]
+#       set tempdata [::VSS::getimproparam $Allpara $mytype]
 #       set ndihedral [expr [llength $tempdata]]
 #       for {set i 1} {$i < $ndihedral} {incr i} {
 #          lappend dihedlist [list $item1 $item2 $item3 $item4]
@@ -798,7 +798,7 @@ proc ::VSS::get_angle {sel mid parfile} {
   # Get All parameters
   package require readcharmmpar 1.2
   set typelist [$sel get type]
-  set Allpara [::Pararead::read_charmm_parameters $parfile]
+  set Allpara [::VSS::read_charmm_parameters $parfile]
   set natom [$sel num]
   set rep [list  "{" "" "}" "" "unknown" ""]
   set outflag 1;
@@ -813,7 +813,7 @@ proc ::VSS::get_angle {sel mid parfile} {
      # Angle Parameters
      foreach {item1 item2 item3} $templist {
         set mytype [list [lindex $typelist $item1] [lindex $typelist $item2] [lindex $typelist $item3]]
-        set tempdata [::Pararead::getangleparam $Allpara $mytype]
+        set tempdata [::VSS::getangleparam $Allpara $mytype]
         lappend anglelist [list $item1 $item2 $item3]
         if {[llength [lindex $tempdata 2]]} {
            lappend angledata [list [lindex [lindex $tempdata 1] 0] [lindex [lindex $tempdata 1] 1] [lindex [lindex $tempdata 2] 0] [lindex [lindex $tempdata 2] 1]]
@@ -853,6 +853,15 @@ proc ::VSS::init_SamData {mid2 nlist samdatalist_flag impscan_flag samdataval_fl
   } else {
      set SamData_nentry 0
      set SamData_scanflag 0
+     if {$nlist==4} {
+           puts " "
+           puts "No atom index of dihedral is given! No dihedral sampling is performed!"
+        } else {
+           puts "No atom index of angle is given! No angle sampling is performed!"
+           puts " "
+     }
+     set SamData [list $SamData_nentry $SamData_scanflag $SamData_list $SamData_nsam $SamData_samangle $SamData_naff $SamData_afflist]
+     return $SamData
   }
 
   # Assign number of sampling and sample angles for SamData
@@ -873,15 +882,17 @@ proc ::VSS::init_SamData {mid2 nlist samdatalist_flag impscan_flag samdataval_fl
      for {set i 0} {$i<$totalnsam} {incr i} {lappend SamData_samangle 0}; # initialize the samangle for impscan, update in C.
   } else {
      if {!$samdataval_flag} {
-        puts " "
         if {$nlist==4} {
+           puts " "
            puts "No dihedral sampling detail is given. No dihedral sampling is performed!"
         } else {
            puts "No angle sampling detail is given. No angle sampling is performed!"
+           puts " "
         }
-        puts " "
         set SamData_nentry 0
         set SamData_scanflag 0
+        set SamData [list $SamData_nentry $SamData_scanflag $SamData_list $SamData_nsam $SamData_samangle $SamData_naff $SamData_afflist]
+        return $SamData
      }
   }
 
@@ -994,3 +1005,275 @@ proc ::VSS::read_xst {file} {
       close $fd
    return $cell
 }
+
+# Below taken from readcharmmpar and modified for VSS
+# Letitia 2017.05.02
+#####################################################
+### Get VDW parameters for atom with type $type.  ###
+#####################################################
+
+proc ::VSS::getvdwparam { params type } {
+   set par {}
+
+   # Check for each param set if it matches normal or reverse
+   set found 0
+   set foundparam {}
+   foreach pset [lindex $params 4] {
+      set ptype [lindex $pset 0]
+      set found [string equal $ptype $type]
+      if {$found} { set foundparam $pset; break }
+   }
+
+   if {!$found} {
+      #puts "No parameters found for $type"
+      return
+   } else {
+      set eps   [format "%6.4f" [lindex $foundparam 1 0]]
+      set Rmin2 [format "%6.4f" [lindex $foundparam 1 1]]
+      if {[llength [lindex $foundparam 2]]} {
+         set eps_14   [format "%6.4f" [lindex $foundparam 2 0]]
+         set Rmin2_14 [format "%6.4f" [lindex $foundparam 2 1]]
+         set par [list $eps $Rmin2 $eps_14 $Rmin2_14]
+      } else {
+         set par [list $eps $Rmin2 {} {}]
+      }
+   }
+
+   return $par
+}
+
+#########################################################
+# Assign Parameters to an angle.                        #
+# Returns something like                                #
+# {{NR1 CPH1 HR3} {25.0 124.00} {20.00 2.14000}}        #
+#########################################################
+
+proc ::VSS::getangleparam { params types } {
+   set par {}
+
+   # Reversed typelist
+   set revtypes [lrevert $types]
+
+   # Check for each param set if it matches normal or reverse
+   set found 0
+   set foundparam {}
+   # Modified by Letitia: there was a bug in this code
+   foreach pset [lindex $params 1] {
+      set ptypes [lindex $pset 0]
+      set found [string equal $ptypes $types]
+      if {$found} { set foundparam $pset; break }
+      set found [string equal $ptypes $revtypes]
+      if {$found} { 
+         set foundparam $pset; 
+         # 	 set angle [lrevert $angle]; 
+         # 	 set names [lrevert $names]; 
+         break
+      }
+   }
+
+   if {!$found} {
+      puts "No parameters found for $types / $revtypes"
+      return {}
+   } else {
+      return [list [lindex $foundparam 0] [lindex $foundparam 1] [lindex $foundparam 2]]
+   }
+}
+
+#########################################################
+# Assign Parameters to a dihedral.                      #
+# Returns something like                                #
+# {{ON5 CN7 CN7 ON6B} {0.4 6 0.0} ...}                  #
+#                                                       #
+# Letitia: code fixed, runs and provides periodicity    #
+# 13.04.2015                                            #
+#########################################################
+
+proc ::VSS::getdihedparam { params types } {  
+   set par {}
+
+   # Reversed typelist
+   set revtypes [lrevert $types]
+   # Get wildcard typelist
+   set xtypes [list X [lindex $types 1] [lindex $types 2] X]
+   # Reversed wildcard typelist
+   set rxtypes [list X [lindex $revtypes 1] [lindex $revtypes 2] X]
+
+   # Check for each param set if it matches normal, reverse or including wildcards
+   set found 0
+   set flagout 0
+   set foundparam {}
+   # Modified by Letitia: there was a bug in this code
+   foreach pset [lindex $params 2] {
+      set ptypes [lindex $pset 0]
+
+      # Modified by Letitia: there could be periodicity!
+      set found [string equal $ptypes $types]
+      if {$found} { 
+         lappend foundparam [lindex $pset 1]
+         set typename [lindex $pset 0]
+         set flagout 1
+      }
+
+      set found [string equal $ptypes $revtypes]
+      if {$found} { 
+         lappend foundparam [lindex $pset 1] 
+         set typename [lindex $pset 0]
+         set flagout 1
+      }
+
+      set found [string equal $ptypes $xtypes]
+      if {$found} { 
+         lappend foundparam [lindex $pset 1]
+         set typename [lindex $pset 0]
+         set flagout 1
+      }
+
+      set found [string equal $ptypes $rxtypes]
+      if {$found} { 
+         lappend foundparam $pset 
+         set typename [lindex $pset 0]
+         set flagout 1
+      }
+   }
+  
+   if {!$flagout} {
+      puts "No parameters found for dihed $types"
+      return {}
+   } else {
+      set foundparam [lsort -unique $foundparam]
+      return [linsert $foundparam 0 $typename]
+   }
+}
+
+########################################################################
+### Read bond, angle, dihed, improper, nonbonded, nbifx, hbond       ###
+### parameters from $parfile and returns them in a list.             ###
+########################################################################
+
+proc ::VSS::read_charmm_parameters { parfile } {
+   set fd [open $parfile]
+
+   # Read the parameter file:
+   set bonds {}
+   set angles {}
+   set dihedrals {}
+   set impropers {}
+   set nonbonded {}
+   set nbfix {};   # Explicit nonbonded pair interactions
+   set hbonds {}
+   set comment {}
+   set section {}
+   set remark {}
+
+   set skip 0
+   foreach line [split [read -nonewline $fd] \n] {
+      set trimmed [string trim $line]
+      if {[string index $trimmed 0]=="*"} {
+         # Just a part of the header comment
+         continue
+      }
+      if {[string index $trimmed 0]=="!"} {
+         set comment $trimmed
+         continue
+      }
+      if {[string length $trimmed]==0} {
+         continue
+      }
+      set remidx [string first "!" $trimmed]
+      if ($remidx>=0) {
+         set remark [string range $trimmed $remidx end]
+         set line [string range $trimmed 0 [expr $remidx-1]]
+      }
+      set keyword [lindex $line 0]
+
+      if {$skip} { set skip 0; continue }
+
+      # Look for beginning of next section
+      if { [string equal BONDS     $keyword] } { set section bond; continue }
+      if { [string equal ANGLES    $keyword] } { set section angl; continue }
+      if { [string equal DIHEDRALS $keyword] } { set section dihe; continue }
+      if { [string equal IMPROPERS  $keyword] } { set section impr; continue };   # Modified by Letitia: there was a bug    
+      if { [string equal NONBONDED $keyword] } { 
+         set section nonb; 
+         # Look for continued line
+         if {[lindex $line end] == "-"} {
+            # Skip line:
+            set skip 1
+         }
+         continue
+      }
+      if { [string equal NBFIX     $keyword] } { set section nbfi; continue }
+      if { [string equal HBOND     $keyword] } { set section hbon; continue }
+
+      if {$section=="nonb"} {
+         if {[llength $nonbonded] && [llength $comment] && [string first ! $line]>1} {
+            # append the second line comment if the ! is not at pos 0 or 1.
+            lset nonbonded end end [join [list [lindex $nonbonded end end] $comment]]
+         }
+         if {[lindex $line 4] == 0.0} {
+            #set rem [lrange $line 7 end]
+            if {![llength $remark]} { set remark {{}} }
+            lappend nonbonded [list [lindex $line 0] [lrange $line 2 3] [lrange $line 5 6] $remark]
+         } else {
+            #set rem [lrange $line 4 end]
+            if {![llength $remark]} { set remark {{}} }
+            lappend nonbonded [list [lindex $line 0] [lrange $line 2 3] {} $remark]
+         }
+
+      } elseif {$section=="bond"} {
+         if {[llength $bonds] && [llength $comment]} {
+            # append the second line comment
+            lset bonds end end [join [list [lindex $bonds end end] $comment]]
+         }
+         lappend bonds     [list [lrange $line 0 1] [lrange $line 2 3] [lrange $line 4 end]]
+
+      } elseif {$section=="angl"} {
+         if {[llength $angles] && [llength $comment]} {
+            # append the second line comment
+            lset angles end end [join [list [lindex $angles end end] $comment]]
+         }
+         set ub [lrange $line 5 6]
+         if {[string index $ub 0]=="!" || ![llength $ub]} {
+            lappend angles    [list [lrange $line 0 2] [lrange $line 3 4] [list] [lrange $line 5 end]]
+         } else  {
+            lappend angles    [list [lrange $line 0 2] [lrange $line 3 4] $ub [lrange $line 7 end]]
+         }
+
+      } elseif {$section=="dihe"} {
+         if {[llength $dihedrals] && [llength $comment]} {
+            # append the second line comment
+            lset dihedrals end 2 [join [list [lindex $dihedrals end 2] $comment]]
+         }
+         lappend dihedrals [list [lrange $line 0 3] [lrange $line 4 6] [lrange $line 7 end]]
+
+      } elseif {$section=="impr"} {
+         if {[llength $impropers] && [llength $comment]} {
+            # append the second line comment
+            lset impropers end 2 [join [list [lindex $impropers end 2] $comment]]
+         }
+         lappend impropers [list [lrange $line 0 3] [lrange $line 4 6] [lrange $line 7 end]]
+      } elseif {$section=="nbfi"} {
+         lappend nbfix     [list [lrange $line 0 1] [lrange $line 2 3] [lrange $line 4 end]]
+      } elseif {$section=="hbon"} {
+         lappend hbond     [list [lrange $line 0 1] [lrange $line 2 3] [lrange $line 4 end]]
+      }
+      set comment [list]
+   }
+   close $fd
+
+   return [list $bonds $angles $dihedrals $impropers $nonbonded $nbfix $hbonds]
+}
+
+########################################
+### Reverses the order of a list.    ###
+########################################
+
+proc ::VSS::lrevert { list } {
+   set newlist {}
+   for {set i [expr [llength $list]-1]} {$i>=0} {incr i -1} {
+      lappend newlist [lindex $list $i]
+   }
+   return $newlist
+}
+
+
