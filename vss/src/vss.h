@@ -19,6 +19,7 @@ typedef struct pmepot_data_struct pmepot_data;
 
 // VSS data structures
 struct VDW {
+  int fftype;
   double A, B, Ron, Roff, Ron2, Roff2, swdenom, mycoeff;
   double *para;
 };
@@ -135,7 +136,7 @@ void box_update(double const *cell, struct PAT *patch_data);
 void binatoms(double const *cell, double *xyzq, struct VDW *vdw_data, struct PAT *patch_data, struct PSE *sel);
 void getneighbor(int pid, const double *cell, struct PAT *patch_data);
 void compute_patch_vdwpmer(const double *cell, double ewald_factor, struct VDW *vdw_data, struct PAT *patch_data, struct PSE *sel, struct PSE *sel0, double *E_vdw, double *E_pmer);
-void patch_vdwAB_init(double epsilon_i, double epsilon_j, double R_i, double R_j, double *A, double *B);
+void patch_vdwAB_init(double epsilon_i, double epsilon_j, double R_i, double R_j, double *A, double *B, int fftype);
 double patch_getr2(double *ixyz, double *jxyz, double *nr);
 void patch_free(struct PAT *patch_data, struct PSE *sel0, struct PSE *sel1, struct PSE *sel2);
 

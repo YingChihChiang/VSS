@@ -46,6 +46,7 @@ proc ::VSS::vss { args } {
     puts "  -impscanangle <integer> sample the most relevant n angles"
     puts "  -samanglelist <index1 index2 index3;...> atoms that form the angle to be sampled"
     puts "  -samangleval <float1 float2 ...; ...> values of the angle to be sampled (0 to 180)"
+    puts "  -fftype <name of FF> Force Field: OPLSAA or CHARMM. Default is CHARMM."
     error "error: empty argument list or odd number of arguments: $args"
   }
 
@@ -69,6 +70,7 @@ proc ::VSS::vss { args } {
       -samdihedval {set arg(samdihedval) $val}
       -samanglelist { set arg(samanglelist) $val }
       -samangleval {set arg(samangleval) $val}
+      -fftype {set arg(fftype) $val}
       default { error "unknown argument: $name $val" }
     }
   }
@@ -190,10 +192,26 @@ proc ::VSS::vss { args } {
   }
   variable Boltzmann
   set RT [expr $temperature*$Boltzmann]
-  
+ 
+  # Set the FF type
+  if [info exists arg(fftype)] {
+    if {$arg(fftype)=="CHARMM"} {
+      set fftype 1
+    } elseif {$arg(fftype)=="OPLSAA"} {
+      set fftype 2
+    } else {
+      puts ""
+      puts "Force Field $arg(fftype) is not supported!"
+      puts "VSS stoped!"
+      puts ""
+      error "" 
+    }
+  } else {
+    set fftype 1
+  }
 
   # Set the GData (General data)
-  set GData [list $Ron $Roff $RT $ewaldfactor $gridspacing [$sel1 num] [$sel2 num] [$sel0 num]]
+  set GData [list $Ron $Roff $RT $ewaldfactor $gridspacing [$sel1 num] [$sel2 num] [$sel0 num] $fftype]
 
 
   # Get VDW parameters (Rsults append in RData directly)

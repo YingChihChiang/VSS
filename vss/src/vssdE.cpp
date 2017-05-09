@@ -77,14 +77,21 @@ void vdw_data_init(double ewald_factor, struct VDW *vdw_data) {
 void vdwAB_init(int i, int j, struct VDW *vdw_data, double *A, double *B) {
   double epsilon_ij, Rmin_ij, Rmin2, Rmin6, Rmin12;
 
-  epsilon_ij = sqrt(vdw_data->para[4*i]*vdw_data->para[4*j]);
-  Rmin_ij = vdw_data->para[4*i+1]+vdw_data->para[4*j+1];
+  if (vdw_data->fftype == 2) {
+    // OPLSAA FF
+    epsilon_ij = sqrt(vdw_data->para[4*i]*vdw_data->para[4*j]);
+    Rmin_ij = 2*sqrt(vdw_data->para[4*i+1]*vdw_data->para[4*j+1]);
+  } else {
+    // CHARMM FF    
+    epsilon_ij = sqrt(vdw_data->para[4*i]*vdw_data->para[4*j]);
+    Rmin_ij = vdw_data->para[4*i+1]+vdw_data->para[4*j+1];
+  }
   Rmin2 = Rmin_ij * Rmin_ij;
   Rmin6 = Rmin2 * Rmin2 * Rmin2;
   Rmin12 = Rmin6 * Rmin6;
-
   *A = epsilon_ij * Rmin12;
   *B = 2.0 * epsilon_ij * Rmin6;
+
 }
 
 
@@ -94,38 +101,56 @@ void sel_vdwAB_init(int i, int j, struct VDW *vdw_data, struct EXC *exc_data, do
 
   for (k=exc_data->excdisp3[i];k<exc_data->excdisp3[i+1];k++) {
      if (j==exc_data->exclist3[k]) {
+        *excpair=1.0;
+        *excscale=0.0;
         *A = 0.0;
         *B = 0.0;
-        *excpair=1.0;
-        *excscale=1.0;
         return;
      }
   }
 
   for (k=exc_data->excdisp4[i];k<exc_data->excdisp4[i+1];k++) {
      if (j==exc_data->exclist4[k]) {
-        epsilon_ij = sqrt(vdw_data->para[4*i+2]*vdw_data->para[4*j+2]);
-        Rmin_ij = vdw_data->para[4*i+3]+vdw_data->para[4*j+3];
+        if (vdw_data->fftype == 2) {
+          // OPLSAA FF
+          *excpair=0.5;
+          *excscale=1.0;
+          epsilon_ij = sqrt(vdw_data->para[4*i+2]*vdw_data->para[4*j+2]);
+          Rmin_ij = 2*sqrt(vdw_data->para[4*i+3]*vdw_data->para[4*j+3]);
+        } else {
+          // CHARMM FF
+          *excpair=0.0;
+          *excscale=1.0;
+          epsilon_ij = sqrt(vdw_data->para[4*i+2]*vdw_data->para[4*j+2]);
+          Rmin_ij = vdw_data->para[4*i+3]+vdw_data->para[4*j+3];
+        }
         Rmin2 = Rmin_ij * Rmin_ij;
         Rmin6 = Rmin2 * Rmin2 * Rmin2;
         Rmin12 = Rmin6 * Rmin6;
         *A = epsilon_ij * Rmin12;
         *B = 2.0 * epsilon_ij * Rmin6;
-        *excpair=0.0;
-        *excscale=1.0;
         return;
      }
   }
-
-  epsilon_ij = sqrt(vdw_data->para[4*i]*vdw_data->para[4*j]);
-  Rmin_ij = vdw_data->para[4*i+1]+vdw_data->para[4*j+1];
+  
+  if (vdw_data->fftype == 2) {
+     // OPLSAA FF
+    *excpair=0.0;
+    *excscale=1.0;
+    epsilon_ij = sqrt(vdw_data->para[4*i]*vdw_data->para[4*j]);
+    Rmin_ij = 2*sqrt(vdw_data->para[4*i+3]*vdw_data->para[4*j+3]);
+  } else {
+     // CHARMM FF
+    *excpair=0.0;
+    *excscale=1.0;
+    epsilon_ij = sqrt(vdw_data->para[4*i]*vdw_data->para[4*j]);
+    Rmin_ij = vdw_data->para[4*i+1]+vdw_data->para[4*j+1];
+  }
   Rmin2 = Rmin_ij * Rmin_ij;
   Rmin6 = Rmin2 * Rmin2 * Rmin2;
   Rmin12 = Rmin6 * Rmin6;
   *A = epsilon_ij * Rmin12;
   *B = 2.0 * epsilon_ij * Rmin6;
-  *excpair=0.0;
-  *excscale=1.0;
 
 }
 
@@ -195,7 +220,7 @@ void compute_sel_vdwpmer(pmepot_data *data, const double *cell, int natoms, doub
         if (r2 > Roff2) swfactor=0.0;
         else if (r2 <= Ron2) swfactor=1.0;
         else swfactor = (Roff2-r2)*(Roff2-r2)*(Roff2+2*r2-3*Ron2)/swdenom;
-        VDWE += (A/r12 - B/r6)*swfactor;              // A=B=0 if the pair is in the 1-3 excluded list, and A14 B14 is used if the pair is in 1-4 scaling list..
+        VDWE += (A/r12 - B/r6)*swfactor*excscale;              // A=B=0 if the pair is in the 1-3 excluded list, and A14 B14 is used if the pair is in 1-4 scaling list..
         itar = r * data->ewald_factor;
         e_real = erfc(itar) - excpair;        // Substract the contribtion to ELECT if the pair is in 1-3 excluded list.
         e_real *= COLOUMB*atoms[4*isel+3]*atoms[4*jsel+3]/r;
@@ -232,7 +257,7 @@ void compute_sel_nonb(pmepot_data *data, const double *cell, int natoms, double 
         if (r2 > Roff2) swfactor=0.0;
         else if (r2 <= Ron2) swfactor=1.0;
         else swfactor = (Roff2-r2)*(Roff2-r2)*(Roff2+2*r2-3*Ron2)/swdenom;
-        *E_vdw  += (A/r12 - B/r6)*swfactor;              // A=B=0 if the pair is in the 1-3 excluded list, and A14 B14 is used if the pair is in 1-4 scaling list.
+        *E_vdw  += (A/r12 - B/r6)*swfactor*excscale;              // A=B=0 if the pair is in the 1-3 excluded list, and A14 B14 is used if the pair is in 1-4 scaling list.
         e_real = 1.0 - excpair;                         // Substract the contribtion to ELECT if the pair is in 1-3 excluded list.
         e_real *= COLOUMB*atoms[4*isel+3]*atoms[4*jsel+3]/r;
         *E_elec += e_real;

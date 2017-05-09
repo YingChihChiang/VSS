@@ -42,7 +42,7 @@ int tcl_vssrun(ClientData nodata, Tcl_Interp *interp,
 
   if ( objc != 7 ) { Tcl_SetResult(interp,"args: gdata idata rdata samdata xyzq2 dcd",TCL_VOLATILE); return TCL_ERROR; }
 
-  // GData  (Ron,Roff,RT,Ewaldfactor,gridspacing,nsel1,nsel2,nsel0)
+  // GData  (Ron,Roff,RT,Ewaldfactor,gridspacing,nsel1,nsel2,nsel0,fftype)
   if ( Tcl_ListObjGetElements(interp,objv[1],&data_count,&data_list) != TCL_OK ) return TCL_ERROR;
   if ( Tcl_GetDoubleFromObj(interp,data_list[0],&vdw_data.Ron) != TCL_OK ) return TCL_ERROR;
   if ( Tcl_GetDoubleFromObj(interp,data_list[1],&vdw_data.Roff) != TCL_OK ) return TCL_ERROR;
@@ -52,6 +52,7 @@ int tcl_vssrun(ClientData nodata, Tcl_Interp *interp,
   if ( Tcl_GetIntFromObj(interp,data_list[5],&sel1.natoms) != TCL_OK ) return TCL_ERROR;
   if ( Tcl_GetIntFromObj(interp,data_list[6],&sel2.natoms) != TCL_OK ) return TCL_ERROR;
   if ( Tcl_GetIntFromObj(interp,data_list[7],&sel0.natoms) != TCL_OK ) return TCL_ERROR;
+  if ( Tcl_GetIntFromObj(interp,data_list[8],&vdw_data.fftype) != TCL_OK ) return TCL_ERROR;
 
   natom=sel1.natoms+sel2.natoms+sel0.natoms;
   atoms = (double*) malloc(natom*4*sizeof(double));

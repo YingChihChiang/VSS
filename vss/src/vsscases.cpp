@@ -13,6 +13,10 @@
 #include <time.h>
 #include "vss.h"
 
+#define M_PI 3.14159265358979323846
+#define SQRT_PI 1.7724538509055160273  
+#define COLOUMB 332.0636
+
 void vsscase1(const double *cell, double *atoms, struct GEN *gen_data, pmepot_data *data, struct VDW *vdw_data, 
            struct PSE *sel0, struct PSE *sel1, struct PSE *sel2, struct EXC *exc_data, struct MUT *mut_data, 
            struct PAT *patch_data, struct BOND *Dihed, struct BOND *Angle, struct SAM *SamDihed, struct SAM *SamAngle) 
@@ -169,6 +173,60 @@ void vsscase2(const double *cell, double *atoms, struct GEN *gen_data, pmepot_da
      SelfE_diff = compute_pmeselfdiff(data,atoms,sel1,sel2);
   }
 
+/*
+  // Here Letitia!!
+  int shift;
+  double E_vdw_sel0=0.0, E_pme_sel0=0.0, Eb_sel0;
+  double patchsize = 3.5*vdw_data->Roff2;  //3.5
+  shift = sel1->natoms+sel2->natoms;
+  get_box_disp(cell,box_disp);
+  for (int i=shift; i<natoms; i++) {
+     //for (int j=shift; j<natoms; j++) {
+     for (int j=shift; j<i; j++) {
+        double e_real, excpair, excscale;
+        double A, B, Ron2, Roff2, swdenom;
+        double r, r2, r6, r12, swfactor, itar;
+        excscale = 1.0;
+        excpair = 0.0;
+        // if (j==i) {excscale = 0.0; excpair =1.0;}
+        if (j==i+1) {excscale = 0.0; excpair =1.0;}
+        if (j==i+2) {excscale = 0.0; excpair =1.0;}
+        vdwAB_init(i,j,vdw_data,&A,&B);
+        Ron2 = vdw_data->Ron2;
+        Roff2 = vdw_data->Roff2;
+        swdenom = vdw_data->swdenom;
+        for (int k=0; k<27; k++) {
+           r2 = get_r2(atoms,i,j,box_disp[3*k+0],box_disp[3*k+1],box_disp[3*k+2]);
+           if (r2 > patchsize) continue;
+           r6 = r2*r2*r2;
+           r12 = r6*r6;
+           r = sqrt(r2);
+           if (r2 > Roff2) swfactor=0.0;
+           else if (r2 <= Ron2) swfactor=1.0;
+           else swfactor = (Roff2-r2)*(Roff2-r2)*(Roff2+2*r2-3*Ron2)/swdenom;
+           E_vdw_sel0 += (A/r12 - B/r6)*swfactor*excscale;              // A=B=0 if the pair is in the 1-3 excluded list, and A14 B14 is used if the pair is in 1-4 scaling list..
+           itar = r * data->ewald_factor;
+           e_real = erfc(itar) - excpair;        // Substract the contribtion to ELECT if the pair is in 1-3 excluded list.
+           e_real *= COLOUMB*atoms[4*i+3]*atoms[4*j+3]/r;
+           E_pme_sel0 += e_real;
+        }
+     }
+  }
+  // subtract self energy
+  double SelfE=0.0;
+  for (int i=shift; i<natoms; i++) {
+     SelfE += atoms[4*i+3]*atoms[4*i+3];
+  }
+  for (int i=0; i<sel1->natoms; i++) {
+     SelfE += atoms[4*i+3]*atoms[4*i+3];
+  }
+  SelfE *= -(data->ewald_factor * COLOUMB / SQRT_PI);
+
+  printf("PME and VDW: %f %f \n",E1_PME + E_pme_sel0 - SelfE, E1_VDW + E_vdw_sel0);
+  fflush(stdout);
+  // Letitia, Here! 
+*/
+ 
 #ifdef Ham
   // Ghost ligand correction (Using a full molecule for ghost ligand)
   compute_sel_nonb(data,cell,natoms,atoms,vdw_data,exc_data,sel1,&Evdw,&Eelec);
@@ -204,7 +262,6 @@ void vsscase2(const double *cell, double *atoms, struct GEN *gen_data, pmepot_da
            E2_PME = E_pme_sel+E_pme_pair+E_work;
            E2_VDW = E_vdw_sel+E_vdw_pair;
         }
-
 #ifdef Ham
         // Ghost ligand correction (Using a full molecule for ghost ligand)
         compute_sel_nonb(data,cell,natoms,atoms,vdw_data,exc_data,sel2,&Evdw,&Eelec);

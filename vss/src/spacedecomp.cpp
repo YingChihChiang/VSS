@@ -164,6 +164,7 @@ void getneighbor(int pid, const double *cell, struct PAT *patch_data) {
 
 
 void compute_patch_vdwpmer(const double *cell, double ewald_factor, struct VDW *vdw_data, struct PAT *patch_data, struct PSE *sel, struct PSE *sel0, double *E_vdw, double *E_pmer) {
+  int fftype;
   double VDWE=0.0, PMERE=0.0;
 
   for (int I=0;I<patch_data->npatch;I++) {
@@ -184,7 +185,8 @@ void compute_patch_vdwpmer(const double *cell, double ewald_factor, struct VDW *
               Ron2 = vdw_data->Ron2;
               Roff2 = vdw_data->Roff2;
               swdenom = vdw_data->swdenom;
-              patch_vdwAB_init(sel->patchvdwp[idisp],sel0->patchvdwp[jdisp],sel->patchvdwp[idisp+1],sel0->patchvdwp[jdisp+1],&A,&B);
+              fftype = vdw_data->fftype;
+              patch_vdwAB_init(sel->patchvdwp[idisp],sel0->patchvdwp[jdisp],sel->patchvdwp[idisp+1],sel0->patchvdwp[jdisp+1],&A,&B,fftype);
               r2 = patch_getr2(&sel->patchxyzq[idisp],&sel0->patchxyzq[jdisp],&patch_data->neighbor_nr[Jdisp]);
               if (r2 > Roff2) continue;  // This will introduce a negligible error on electrostatic potential, but speed up the calculation. 
               r6 = r2*r2*r2;
@@ -206,11 +208,18 @@ void compute_patch_vdwpmer(const double *cell, double ewald_factor, struct VDW *
 }
 
 
-void patch_vdwAB_init(double epsilon_i, double epsilon_j, double R_i, double R_j, double *A, double *B) {
+void patch_vdwAB_init(double epsilon_i, double epsilon_j, double R_i, double R_j, double *A, double *B, int fftype) {
   double epsilon_ij, Rmin_ij, Rmin2, Rmin6, Rmin12;
 
-  epsilon_ij = sqrt(epsilon_i*epsilon_j);
-  Rmin_ij = R_i+R_j;
+  if (fftype == 2) {
+    // OPLSAA FF
+    epsilon_ij = sqrt(epsilon_i*epsilon_j);
+    Rmin_ij = 2*sqrt(R_i*R_j);
+  } else {
+    // CHARMM FF
+    epsilon_ij = sqrt(epsilon_i*epsilon_j);
+    Rmin_ij = R_i+R_j;
+  }
   Rmin2 = Rmin_ij * Rmin_ij;
   Rmin6 = Rmin2 * Rmin2 * Rmin2;
   Rmin12 = Rmin6 * Rmin6;
